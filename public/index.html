@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WikiRace Local</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" data-nav="home" title="Home">
+      <span class="brand-mark">W</span><span class="brand-text">WikiRace <small>local</small></span>
+    </button>
+    <nav class="nav">
+      <button data-nav="home">Play</button>
+      <button data-nav="multi">Multiplayer</button>
+      <button data-nav="history">History</button>
+      <button id="open-settings" title="Settings (,)">Settings</button>
+    </nav>
+  </header>
+
+  <!-- ============ HOME / SETUP ============ -->
+  <main id="view-home" class="view">
+    <section class="hero">
+      <h1>Race across Wikipedia</h1>
+      <p>Get from one article to another using only the links on the page. Fewest clicks and fastest time win.</p>
+    </section>
+
+    <section class="card setup">
+      <div class="tabs" role="tablist" id="mode-tabs">
+        <button role="tab" data-mode="random" class="active">Random</button>
+        <button role="tab" data-mode="daily">Daily challenge</button>
+        <button role="tab" data-mode="custom">Custom</button>
+      </div>
+
+      <div class="mode-panel" data-panel="random">
+        <label class="inline">Difficulty
+          <select id="difficulty">
+            <option value="easy">Easy: famous articles</option>
+            <option value="medium" selected>Medium: random start, famous target</option>
+            <option value="hard">Hard: fully random</option>
+          </select>
+        </label>
+      </div>
+      <div class="mode-panel hidden" data-panel="daily">
+        <p class="muted">Everyone gets the same pair today: <strong id="daily-date"></strong>. Compare your score with friends.</p>
+      </div>
+      <div class="mode-panel hidden" data-panel="custom">
+        <div class="grid2">
+          <label>Start article<input id="custom-start" list="dl-start" autocomplete="off" placeholder="Leave blank for random"></label>
+          <label>Target article<input id="custom-target" list="dl-target" autocomplete="off" placeholder="Leave blank for random"></label>
+        </div>
+        <datalist id="dl-start"></datalist><datalist id="dl-target"></datalist>
+      </div>
+      <label class="via-row">Checkpoint (optional): must pass through
+        <input id="custom-via" list="dl-via" autocomplete="off" placeholder="e.g. Philosophy">
+        <datalist id="dl-via"></datalist>
+      </label>
+
+      <div class="pair" id="pair">
+        <div class="pair-card" id="pair-start">
+          <div class="pair-label">Start <button class="icon-btn" data-reroll="start" title="New start">⟳</button></div>
+          <div class="pair-body"><span class="muted">Press "Pick pages" to choose</span></div>
+        </div>
+        <button class="swap" id="swap" title="Swap start and target">⇄</button>
+        <div class="pair-card" id="pair-target">
+          <div class="pair-label">Target <button class="icon-btn" data-reroll="target" title="New target">⟳</button></div>
+          <div class="pair-body"><span class="muted">…</span></div>
+        </div>
+      </div>
+
+      <div class="rules-line" id="rules-summary"></div>
+
+      <div class="actions">
+        <button id="pick" class="secondary">Pick pages</button>
+        <button id="go" class="primary">Start race →</button>
+      </div>
+    </section>
+
+    <section class="card quick-stats" id="home-stats"></section>
+  </main>
+
+  <!-- ============ GAME ============ -->
+  <main id="view-game" class="view hidden">
+    <div class="gamebar">
+      <div class="route">
+        <span class="route-start" id="g-start"></span>
+        <span class="arrow">→</span>
+        <button class="route-target" id="g-target" title="Show target preview"></button>
+        <span class="route-via hidden" id="g-via"></span>
+      </div>
+      <div class="gstats">
+        <div class="stat"><span class="stat-v" id="g-clicks">0</span><span class="stat-l">clicks</span></div>
+        <div class="stat"><span class="stat-v" id="g-timer">0:00</span><span class="stat-l" id="g-timer-l">time</span></div>
+      </div>
+      <div class="gbuttons">
+        <button id="g-back" class="secondary" title="Back (Alt+←)">← Back</button>
+        <button id="g-sidebar" class="secondary" title="Toggle sidebar">☰</button>
+        <button id="g-giveup" class="danger">Give up</button>
+      </div>
+    </div>
+    <div class="game-body">
+      <article class="article" id="article" tabindex="-1"></article>
+      <aside class="sidebar" id="sidebar">
+        <section id="side-opponents" class="side-sec hidden">
+          <h3>Racers</h3>
+          <ol id="opponents"></ol>
+        </section>
+        <section class="side-sec" id="side-target">
+          <h3>Target</h3>
+          <div id="target-preview" class="preview"></div>
+        </section>
+        <section class="side-sec" id="side-path">
+          <h3>Your path</h3>
+          <ol id="path" class="path"></ol>
+        </section>
+      </aside>
+    </div>
+    <div class="loading hidden" id="loading"><div class="spinner"></div></div>
+    <div class="countdown hidden" id="countdown"></div>
+  </main>
+
+  <!-- ============ MULTIPLAYER ============ -->
+  <main id="view-multi" class="view hidden">
+    <section class="card" id="mp-entry">
+      <h2>Race your friends</h2>
+      <p class="muted">Everyone opens this server in their browser, joins the same room, and races the same pair at the same time.</p>
+      <div id="lan-hint" class="hint"></div>
+      <label>Your name<input id="mp-name" maxlength="24" placeholder="Player"></label>
+      <div class="grid2 mp-choices">
+        <div>
+          <h3>Host a room</h3>
+          <button id="mp-create" class="primary">Create room</button>
+        </div>
+        <div>
+          <h3>Join a room</h3>
+          <div class="row"><input id="mp-code" maxlength="4" placeholder="CODE" class="code-input"><button id="mp-join" class="primary">Join</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card hidden" id="mp-room">
+      <div class="room-head">
+        <div>
+          <div class="muted small">Room code</div>
+          <div class="room-code" id="room-code"></div>
+        </div>
+        <div class="room-link">
+          <input id="room-link" readonly>
+          <button id="room-copy" class="secondary">Copy link</button>
+        </div>
+        <button id="room-leave" class="danger">Leave</button>
+      </div>
+
+      <div class="grid2 room-grid">
+        <div>
+          <h3>Players</h3>
+          <ul id="room-players" class="players"></ul>
+        </div>
+        <div>
+          <h3>Race settings <span class="muted small" id="room-host-note"></span></h3>
+          <form id="room-settings" class="room-settings">
+            <label>Pages
+              <select name="difficulty">
+                <option value="easy">Easy: famous articles</option>
+                <option value="medium">Medium: random start, famous target</option>
+                <option value="hard">Hard: fully random</option>
+                <option value="daily">Daily challenge</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <div class="custom-only grid2">
+              <label>Start<input name="start" list="dl-start" placeholder="random"></label>
+              <label>Target<input name="target" list="dl-target" placeholder="random"></label>
+            </div>
+            <label>Checkpoint (optional)<input name="via" list="dl-via"></label>
+            <div class="grid2">
+              <label>Language<input name="lang" maxlength="16"></label>
+              <label>Rank by
+                <select name="scoring"><option value="time">Fastest finish</option><option value="clicks">Fewest clicks</option></select>
+              </label>
+              <label>Time limit (sec, 0 = none)<input name="timeLimit" type="number" min="0"></label>
+              <label>Click limit (0 = none)<input name="clickLimit" type="number" min="0"></label>
+            </div>
+            <label class="check"><input type="checkbox" name="allowBack"> Allow back button</label>
+            <label class="check"><input type="checkbox" name="backCountsAsClick"> Going back costs a click</label>
+            <label class="check"><input type="checkbox" name="banDates"> Ban year, date &amp; list pages</label>
+            <label class="check"><input type="checkbox" name="showOpponentPages"> Show where other racers are</label>
+            <label>Banned pages (one per line)<textarea name="bannedPages" rows="2"></textarea></label>
+          </form>
+        </div>
+      </div>
+
+      <div id="room-results" class="hidden"></div>
+
+      <div class="actions">
+        <span class="muted" id="room-status"></span>
+        <button id="room-rejoin" class="secondary hidden">Back to race</button>
+        <button id="room-start" class="primary">Start race</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ HISTORY ============ -->
+  <main id="view-history" class="view hidden">
+    <section class="card">
+      <div class="history-head">
+        <h2>Your races</h2>
+        <div class="row">
+          <select id="history-filter">
+            <option value="all">All races</option>
+            <option value="won">Wins</option>
+            <option value="solo">Solo</option>
+            <option value="multi">Multiplayer</option>
+            <option value="daily">Daily</option>
+          </select>
+          <button id="history-export" class="secondary">Export</button>
+          <button id="history-clear" class="danger">Clear</button>
+        </div>
+      </div>
+      <div class="tiles" id="history-tiles"></div>
+      <div id="history-list"></div>
+    </section>
+  </main>
+
+  <!-- ============ RESULT MODAL ============ -->
+  <div class="modal hidden" id="result-modal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <h2 id="r-title"></h2>
+      <p id="r-sub" class="muted"></p>
+      <div class="tiles" id="r-tiles"></div>
+      <h3>Path</h3>
+      <ol class="path" id="r-path"></ol>
+      <div id="r-room"></div>
+      <div class="actions">
+        <button id="r-copy" class="secondary">Copy result</button>
+        <button id="r-view" class="secondary">Keep reading</button>
+        <button id="r-retry" class="secondary">Retry this pair</button>
+        <button id="r-new" class="primary">New race</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS MODAL ============ -->
+  <div class="modal hidden" id="settings-modal" role="dialog" aria-modal="true">
+    <div class="modal-box wide">
+      <div class="modal-head"><h2>Settings</h2><button class="icon-btn" data-close title="Close">✕</button></div>
+      <form id="settings-form" class="settings">
+        <fieldset>
+          <legend>Player</legend>
+          <label>Name<input name="playerName" maxlength="24"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Rules (solo races)</legend>
+          <label>Preset
+            <select name="preset" id="preset">
+              <option value="">Custom</option>
+              <option value="classic">Classic: no limits</option>
+              <option value="speedrun">Speedrun: 3 minutes</option>
+              <option value="sixdegrees">Six degrees: 6 clicks max</option>
+              <option value="nousa">No USA: "United States" is banned</option>
+              <option value="purist">Purist: no back button, no dates</option>
+              <option value="hardcore">Hardcore: 90 s, 10 clicks, no back, no images</option>
+            </select>
+          </label>
+          <label>Wikipedia language<input name="lang" maxlength="16" placeholder="en, de, fr, es, simple…" list="dl-langs"></label>
+          <datalist id="dl-langs">
+            <option value="en">English</option><option value="simple">Simple English</option>
+            <option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option>
+            <option value="it">Italiano</option><option value="pt">Português</option><option value="nl">Nederlands</option>
+            <option value="pl">Polski</option><option value="sv">Svenska</option><option value="ja">日本語</option>
+            <option value="zh">中文</option><option value="ru">Русский</option>
+          </datalist>
+          <div class="grid2">
+            <label>Time limit (seconds, 0 = none)<input name="timeLimit" type="number" min="0"></label>
+            <label>Click limit (0 = none)<input name="clickLimit" type="number" min="0"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="allowBack"> Allow back button</label>
+          <label class="check"><input type="checkbox" name="backCountsAsClick"> Going back costs a click</label>
+          <label class="check"><input type="checkbox" name="banDates"> Ban year, date &amp; "List of…" pages</label>
+          <label>Banned pages (one per line)<textarea name="bannedPages" rows="3" placeholder="United States&#10;Adolf Hitler"></textarea></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Article display</legend>
+          <label class="check"><input type="checkbox" name="showImages"> Show images</label>
+          <label class="check"><input type="checkbox" name="hideInfobox"> Hide infoboxes</label>
+          <label class="check"><input type="checkbox" name="hideNavboxes"> Hide navigation boxes (the link-heavy tables at the bottom)</label>
+          <label class="check"><input type="checkbox" name="hideSeeAlso"> Hide "See also" sections</label>
+          <label class="check"><input type="checkbox" name="hideReferences"> Hide references &amp; footnotes</label>
+          <label class="check"><input type="checkbox" name="hideDeadText"> Dim text that isn't a playable link</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Assists</legend>
+          <label class="check"><input type="checkbox" name="showTargetPreview"> Show target summary in the sidebar</label>
+          <label class="check"><input type="checkbox" name="showPath"> Show my path in the sidebar</label>
+          <label class="check"><input type="checkbox" name="highlightTarget"> Highlight the target link when it's on the page</label>
+          <label class="check"><input type="checkbox" name="confirmGiveUp"> Ask before giving up</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Appearance</legend>
+          <div class="grid2">
+            <label>Theme
+              <select name="theme"><option value="auto">Match system</option><option value="light">Light</option><option value="dark">Dark</option><option value="sepia">Sepia</option></select>
+            </label>
+            <label>Text size
+              <select name="fontSize"><option value="14">Small</option><option value="16">Normal</option><option value="18">Large</option><option value="20">Extra large</option></select>
+            </label>
+            <label>Article width
+              <select name="width"><option value="narrow">Narrow</option><option value="normal">Normal</option><option value="wide">Full width</option></select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Local cache</legend>
+          <p class="muted small" id="cache-info">…</p>
+          <button type="button" id="cache-clear" class="secondary">Clear cached articles</button>
+        </fieldset>
+      </form>
+      <div class="actions">
+        <button id="settings-reset" class="secondary">Reset to defaults</button>
+        <button data-close class="primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Target preview popover -->
+  <div class="modal hidden" id="target-modal">
+    <div class="modal-box">
+      <div class="modal-head"><h2 id="tm-title"></h2><button class="icon-btn" data-close>✕</button></div>
+      <div id="tm-body" class="preview"></div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "wikirace-local",
+  "version": "1.0.0",
+  "description": "A self-hosted WikiRace game: race from one Wikipedia article to another using only links. Runs locally, talks only to Wikipedia.",
+  "main": "server.js",
+  "bin": { "wikirace": "server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "lan": "node server.js --lan",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18.17" },
+  "license": "MIT"
+}
